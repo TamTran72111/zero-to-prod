@@ -2,12 +2,23 @@ use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use sqlx::PgPool;
+use std::convert::TryInto;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
     email: String,
     name: String,
+}
+
+impl TryInto<NewSubscriber> for FormData {
+    type Error = String;
+
+    fn try_into(self) -> Result<NewSubscriber, Self::Error> {
+        let name = SubscriberName::parse(self.name)?;
+        let email = SubscriberEmail::parse(self.email)?;
+        Ok(NewSubscriber { email, name })
+    }
 }
 
 #[tracing::instrument(
@@ -24,13 +35,10 @@ pub async fn subscribe(
 ) -> Result<HttpResponse, HttpResponse> {
     // `web::Form` is a wrapper around `FormData`
     // `form.0` gives access to the underlying `FormData`
-    let name =
-        SubscriberName::parse(form.0.name).map_err(|_| HttpResponse::BadRequest().finish())?;
-
-    let email =
-        SubscriberEmail::parse(form.0.email).map_err(|_| HttpResponse::BadRequest().finish())?;
-
-    let new_subscriber = NewSubscriber { email, name };
+    let new_subscriber = form
+        .0
+        .try_into()
+        .map_err(|_| HttpResponse::BadRequest().finish())?;
 
     insert_subscriber(&pool, &new_subscriber)
         .await

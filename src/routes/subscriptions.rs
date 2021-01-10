@@ -1,4 +1,4 @@
-use crate::domain::{NewSubscriber, SubscriberName};
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use sqlx::PgPool;
@@ -27,10 +27,10 @@ pub async fn subscribe(
     let name =
         SubscriberName::parse(form.0.name).map_err(|_| HttpResponse::BadRequest().finish())?;
 
-    let new_subscriber = NewSubscriber {
-        email: form.0.email,
-        name,
-    };
+    let email =
+        SubscriberEmail::parse(form.0.email).map_err(|_| HttpResponse::BadRequest().finish())?;
+
+    let new_subscriber = NewSubscriber { email, name };
 
     insert_subscriber(&pool, &new_subscriber)
         .await
@@ -52,7 +52,7 @@ pub async fn insert_subscriber(
         VALUES ($1, $2, $3, $4)
         "#,
         Uuid::new_v4(),
-        new_subscriber.email,
+        new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
         Utc::now()
     )
